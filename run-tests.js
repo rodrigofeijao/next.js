@@ -257,14 +257,22 @@ async function main() {
     // to avoid having to run yarn each time
     console.log('Creating Next.js install for isolated tests')
     const reactVersion = process.env.NEXT_TEST_REACT_VERSION || 'latest'
-    const testStarter = await createNextInstall({
+    const { installDir, pkgPaths } = await createNextInstall({
       parentSpan: mockTrace(),
       dependencies: {
         react: reactVersion,
         'react-dom': reactVersion,
       },
+      keepRepoDir: true,
     })
-    process.env.NEXT_TEST_STARTER = testStarter
+
+    const serializedPkgPaths = []
+
+    for (const key of pkgPaths.keys()) {
+      serializedPkgPaths.push([key, pkgPaths.get(key)])
+    }
+    process.env.NEXT_TEST_PKG_PATHS = JSON.stringify(serializedPkgPaths)
+    process.env.NEXT_TEST_STARTER = installDir
   }
 
   const sema = new Sema(concurrency, { capacity: testNames.length })
@@ -307,6 +315,14 @@ async function main() {
             HEADLESS: 'true',
             TRACE_PLAYWRIGHT: 'true',
             NEXT_TELEMETRY_DISABLED: '1',
+            // unset CI env so CI behavior is only explicitly
+            // tested when enabled
+            CI: '',
+            CIRCLECI: '',
+            GITHUB_ACTIONS: '',
+            CONTINUOUS_INTEGRATION: '',
+            RUN_ID: '',
+            BUILD_NUMBER: '',
             ...(isFinalRun
               ? {
                   // Events can be finicky in CI. This switches to a more
